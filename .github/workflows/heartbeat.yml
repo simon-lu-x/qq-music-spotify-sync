@@ -1,0 +1,46 @@
+name: Keep Repository Active
+
+on:
+  schedule:
+    # Keep scheduled workflows from being disabled after 60 days of inactivity.
+    # UTC 00:23 on the 1st day of each month.
+    - cron: '23 0 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Update heartbeat timestamp
+        run: |
+          {
+            echo "Last heartbeat: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "Purpose: keep GitHub scheduled workflows active."
+          } > .github/heartbeat.txt
+
+      - name: Commit heartbeat
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .github/heartbeat.txt
+          if git diff --cached --quiet; then
+            echo "Heartbeat already up to date."
+            exit 0
+          fi
+
+          git commit -m "chore: monthly repository heartbeat"
+          git push
