@@ -171,3 +171,24 @@ class TestReplacePlaylistTracks:
         client.replace_playlist_tracks("pl-id", uris)
         actual_uris = sp.playlist_replace_items.call_args[0][1]
         assert len(actual_uris) == 100
+
+
+class TestBuildClient:
+    @patch("qq_spotify_sync.spotify_client.SpotifyOAuth")
+    def test_invalid_grant_includes_reauth_hint(self, oauth_cls):
+        from spotipy.oauth2 import SpotifyOauthError
+
+        oauth_cls.return_value.refresh_access_token.side_effect = SpotifyOauthError(
+            "error: invalid_grant, error_description: Refresh token revoked",
+            error="invalid_grant",
+            error_description="Refresh token revoked",
+        )
+        with pytest.raises(SpotifyError, match="get_refresh_token.py"):
+            _build_client(_make_config())
+
+    @patch("qq_spotify_sync.spotify_client.SpotifyOAuth")
+    def test_other_errors_have_no_reauth_hint(self, oauth_cls):
+        oauth_cls.return_value.refresh_access_token.side_effect = RuntimeError("network down")
+        with pytest.raises(SpotifyError) as excinfo:
+            _build_client(_make_config())
+        assert "get_refresh_token.py" not in str(excinfo.value)

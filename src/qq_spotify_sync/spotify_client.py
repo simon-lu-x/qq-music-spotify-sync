@@ -21,6 +21,13 @@ class SpotifyError(Exception):
     """System-level Spotify failure."""
 
 
+_REAUTH_HINT = (
+    "The refresh token is no longer valid. Re-authorize by running "
+    "`python scripts/get_refresh_token.py` locally, then update the "
+    "SPOTIFY_REFRESH_TOKEN GitHub secret with the new value."
+)
+
+
 @dataclass
 class SpotifyTrack:
     uri: str
@@ -45,7 +52,10 @@ def _build_client(config: Config) -> spotipy.Spotify:
     try:
         token_info = auth_manager.refresh_access_token(config.spotify_refresh_token)
     except Exception as exc:
-        raise SpotifyError(f"Failed to refresh Spotify access token: {exc}") from exc
+        message = f"Failed to refresh Spotify access token: {exc}"
+        if "invalid_grant" in str(exc):
+            message = f"{message}. {_REAUTH_HINT}"
+        raise SpotifyError(message) from exc
 
     return spotipy.Spotify(auth=token_info["access_token"])
 
