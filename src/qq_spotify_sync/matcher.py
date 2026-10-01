@@ -106,8 +106,28 @@ def _normalize(text: str) -> str:
     return text
 
 
+_TRAILING_LATIN_SUBTITLE = re.compile(r"(?<=[\u4e00-\u9fff])\s*[a-z0-9][a-z0-9 ]*$")
+
+
+def _is_latin_subtitle_variant(a: str, b: str) -> bool:
+    """
+    True when two normalized titles differ only by an English subtitle glued onto
+    the Chinese title, e.g. "甲乙丙丁" vs "甲乙丙丁strangers". Spotify often
+    lists Chinese songs this way while QQ Music uses the Chinese title alone.
+    """
+    for short, long_ in ((a, b), (b, a)):
+        core = _TRAILING_LATIN_SUBTITLE.sub("", long_).strip()
+        if core != long_ and core == short and _contains_cjk(core) and len(core) >= 2:
+            return True
+    return False
+
+
 def _title_similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+    norm_a, norm_b = _normalize(a), _normalize(b)
+    ratio = SequenceMatcher(None, norm_a, norm_b).ratio()
+    if _is_latin_subtitle_variant(norm_a, norm_b):
+        return max(ratio, _RELAXED_PRIMARY_TITLE_THRESHOLD)
+    return ratio
 
 
 def _artists_overlap(qq_artists: list[str], sp_artists: list[str]) -> int:

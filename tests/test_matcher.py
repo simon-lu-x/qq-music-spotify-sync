@@ -259,3 +259,33 @@ class TestMatchSongs:
         assert result.unmatched[0][1].reason == "no_candidate_passed_acceptance_criteria"
         # Both phases return candidates (same bad track), so we get >= 1
         assert len(result.unmatched[0][1].candidates) >= 1
+
+
+class TestLatinSubtitleTitle:
+    def test_chinese_title_matches_title_with_english_subtitle(self):
+        assert _title_similarity("甲乙丙丁 (你我怎么两清)", "甲乙丙丁Strangers") >= 0.95
+
+    def test_subtitle_rule_works_in_either_direction(self):
+        assert _title_similarity("甲乙丙丁Strangers", "甲乙丙丁") >= 0.95
+
+    def test_different_chinese_titles_not_affected(self):
+        assert _title_similarity("异想天开", "异想天开了") < 0.95
+        assert _title_similarity("甲乙丙丁", "甲乙丙丁戊己") < 0.95
+
+    def test_pure_english_titles_not_affected(self):
+        assert _title_similarity("Dear John", "Dear John Letter") < 0.95
+
+    def test_matches_english_stage_name_artist_with_subtitle_title(self):
+        song = make_song("甲乙丙丁 (你我怎么两清)", ["李佳薇"], duration_ms=210_000)
+        track = make_track("甲乙丙丁Strangers", ["Jess Lee"], duration_ms=210_461)
+        assert _best_candidate(song, [track], allow_primary_artist_fallback=True) == track
+
+    def test_duration_still_must_match(self):
+        song = make_song("甲乙丙丁 (你我怎么两清)", ["李佳薇"], duration_ms=210_000)
+        track = make_track("甲乙丙丁Strangers", ["Jess Lee"], duration_ms=260_000)
+        assert _best_candidate(song, [track], allow_primary_artist_fallback=True) is None
+
+    def test_cantonese_version_still_rejected(self):
+        song = make_song("甲乙丙丁 (你我怎么两清)", ["李佳薇"], duration_ms=210_000)
+        track = make_track("甲乙丙丁Strangers - 粵語版", ["Jess Lee"], duration_ms=209_000)
+        assert _best_candidate(song, [track], allow_primary_artist_fallback=True) is None
